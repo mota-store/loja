@@ -244,6 +244,14 @@ export async function getCouponByCode(storeId: number, code: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getCouponById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(coupons).where(eq(coupons.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function getCouponsByStore(storeId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -391,7 +399,7 @@ export async function createOrder(data: {
       couponCode: data.couponCode,
     });
 
-    const orderId = orderResult[0];
+    const orderId = (orderResult as any).insertId || orderResult[0];
 
     for (const item of data.items) {
       await tx.insert(orderItems).values({
