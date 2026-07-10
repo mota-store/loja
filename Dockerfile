@@ -10,7 +10,8 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --legacy-peer-deps
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist/index.js ./dist/
+COPY --from=builder /app/dist/public ./dist/public
 EXPOSE 3000
 ENTRYPOINT ["/sbin/dumb-init", "--"]
 CMD ["node", "dist/index.js"]
