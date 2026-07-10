@@ -128,7 +128,15 @@ export async function createStore(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(stores).values(data);
+  const result = await db.insert(stores).values({
+    ownerId: data.ownerId,
+    name: data.name,
+    slug: data.slug,
+    accentColor: data.accentColor,
+    whatsappNumber: data.whatsappNumber,
+    description: data.description,
+    isActive: true,
+  });
   return result;
 }
 
@@ -182,8 +190,12 @@ export async function createProduct(data: {
   if (!db) throw new Error("Database not available");
 
   return await db.insert(products).values({
-    ...data,
+    storeId: data.storeId,
+    name: data.name,
+    description: data.description,
+    price: data.price,
     benefits: data.benefits || [],
+    isActive: true,
   });
 }
 
@@ -230,7 +242,15 @@ export async function createCoupon(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.insert(coupons).values(data);
+  return await db.insert(coupons).values({
+    storeId: data.storeId,
+    code: data.code,
+    discountPercentage: data.discountPercentage,
+    maxUses: data.maxUses,
+    expiresAt: data.expiresAt,
+    currentUses: 0,
+    isActive: true,
+  });
 }
 
 export async function getCouponByCode(storeId: number, code: string) {
@@ -397,6 +417,8 @@ export async function createOrder(data: {
       total: data.total,
       discountApplied: data.discountApplied || "0",
       couponCode: data.couponCode,
+      status: "pending",
+      whatsappMessageSent: false,
     });
 
     const orderId = (orderResult as any).insertId || orderResult[0];
