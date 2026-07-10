@@ -5,7 +5,6 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
-import { ENV } from "./env";
 import { SignJWT } from "jose";
 
 // Session serialization
@@ -23,44 +22,56 @@ passport.deserializeUser(async (id: number, done) => {
   }
 });
 
-// Google OAuth Strategy
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-      callbackURL: "/api/oauth/google/callback",
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      try {
-        const email = profile.emails?.[0]?.value;
-        const name = profile.displayName;
-        const googleId = profile.id;
-
-        if (!email || !googleId) {
-          return done(new Error("Missing email or Google ID"));
-        }
-
-        // Upsert user
-        await db.upsertUser({
-          openId: `google_${googleId}`,
-          email,
-          name,
-          loginMethod: "google",
-          lastSignedIn: new Date(),
-        });
-
-        // Get user from database
-        const user = await db.getUserByOpenId(`google_${googleId}`);
-        done(null, user);
-      } catch (error) {
-        done(error);
-      }
-    }
-  )
-);
-
 export function registerGoogleOAuthRoutes(app: Express) {
+  const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+
+  // Only register Google OAuth if credentials are provided
+  if (!googleClientId || !googleClientSecret) {
+    console.warn(
+      "[Google OAuth] Skipping registration: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set. " +
+      "Google login will be unavailable."
+    );
+    return;
+  }
+
+  // Register Google Strategy (lazy initialization — only when credentials exist)
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: googleClientId,
+        clientSecret: googleClientSecret,
+        callbackURL: "/api/oauth/google/callback",
+      },
+      async (accessToken, refreshToken, profile, done) => {
+        try {
+          const email = profile.emails?.[0]?.value;
+          const name = profile.displayName;
+          const googleId = profile.id;
+
+          if (!email || !googleId) {
+            return done(new Error("Missing email or Google ID"));
+          }
+
+          // Upsert user
+          await db.upsertUser({
+            openId: `google_${googleId}`,
+            email,
+            name,
+            loginMethod: "google",
+            lastSignedIn: new Date(),
+          });
+
+          // Get user from database
+          const user = await db.getUserByOpenId(`google_${googleId}`);
+          done(null, user);
+        } catch (error) {
+          done(error);
+        }
+      }
+    )
+  );
+
   // Session middleware
   app.use(
     session({
