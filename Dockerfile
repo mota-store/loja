@@ -6,8 +6,11 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+# Install pnpm with specific version
+RUN npm install -g pnpm@10.4.1
+
+# Install dependencies (sem --frozen-lockfile para evitar problemas)
+RUN pnpm install
 
 # Copy source code
 COPY . .
@@ -20,14 +23,17 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Install pnpm in production image
-RUN npm install -g pnpm
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
+# Install pnpm
+RUN npm install -g pnpm@10.4.1
+
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --prod
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
@@ -35,5 +41,10 @@ COPY --from=builder /app/dist ./dist
 # Expose port
 EXPOSE 3000
 
-# Start the application
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
+
+# Run with dumb-init to handle signals properly
+ENTRYPOINT ["/sbin/dumb-init", "--"]
 CMD ["node", "dist/index.js"]
