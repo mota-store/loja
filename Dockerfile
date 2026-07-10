@@ -3,20 +3,17 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@10.4.1
+# Copy package files
+COPY package.json package-lock.json* ./
 
-# Copy package files only
-COPY package.json pnpm-lock.yaml ./
-
-# Install dependencies with retry logic
-RUN pnpm install --no-frozen-lockfile || pnpm install --no-frozen-lockfile
+# Install dependencies using npm
+RUN npm ci --prefer-offline --no-audit 2>/dev/null || npm install
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN pnpm run build
+RUN npm run build
 
 # Production stage
 FROM node:22-alpine
@@ -26,14 +23,11 @@ WORKDIR /app
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
-# Install pnpm
-RUN npm install -g pnpm@10.4.1
-
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json package-lock.json* ./
 
 # Install production dependencies only
-RUN pnpm install --prod --no-frozen-lockfile || pnpm install --prod --no-frozen-lockfile
+RUN npm ci --prefer-offline --no-audit --omit=dev 2>/dev/null || npm install --omit=dev
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
