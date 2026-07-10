@@ -3,14 +3,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
-
-# Install pnpm with specific version
+# Install pnpm
 RUN npm install -g pnpm@10.4.1
 
-# Install dependencies (sem --frozen-lockfile para evitar problemas)
-RUN pnpm install
+# Copy package files only
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies with retry logic
+RUN pnpm install --no-frozen-lockfile || pnpm install --no-frozen-lockfile
 
 # Copy source code
 COPY . .
@@ -26,14 +26,14 @@ WORKDIR /app
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
-
 # Install pnpm
 RUN npm install -g pnpm@10.4.1
 
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
 # Install production dependencies only
-RUN pnpm install --prod
+RUN pnpm install --prod --no-frozen-lockfile || pnpm install --prod --no-frozen-lockfile
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
