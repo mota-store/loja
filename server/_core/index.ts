@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { ENV } from "./env";
+import { runDiagnostics } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,7 +40,11 @@ async function startServer() {
   // Basic health check for required env vars
   if (!ENV.databaseUrl) {
     console.warn("[Warning] DATABASE_URL is not set. Database features will be unavailable.");
+  } else {
+    // Run database diagnostics on startup
+    runDiagnostics().catch(err => console.error("Diagnostics failed:", err));
   }
+  
   if (!ENV.jwtSecret) {
     console.warn("[Warning] JWT_SECRET is not set. Authentication might fail.");
   }

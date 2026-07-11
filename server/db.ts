@@ -62,9 +62,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       
       // Sanitize name to avoid charset issues with special characters/emojis
       if (field === "name" && typeof value === "string") {
-        // Remove characters that might break standard UTF-8 (non-BMP characters like emojis)
-        // unless the database is explicitly set to utf8mb4.
-        // We'll replace them with a space or empty string to be safe.
         value = value.replace(/[^\u0000-\uFFFF]/g, "");
       }
 
@@ -98,8 +95,15 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     await db.insert(users).values(values).onDuplicateKeyUpdate({
       set: updateSet,
     });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+  } catch (error: any) {
+    console.error("[Database Error] Detailed report for upsertUser:");
+    console.error("Code:", error.code);
+    console.error("Errno:", error.errno);
+    console.error("SQL State:", error.sqlState);
+    console.error("SQL Message:", error.sqlMessage);
+    console.error("Stack:", error.stack);
+    if (error.sql) console.error("Executed SQL:", error.sql);
+    
     throw error;
   }
 }
@@ -122,6 +126,31 @@ export async function getUserById(id: number) {
 
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+// ============ DIAGNOSTICS ============
+export async function runDiagnostics() {
+  const db = await getDb();
+  if (!db) {
+    console.error("[Diagnostics] Database not available");
+    return;
+  }
+
+  try {
+    console.log("[Diagnostics] Running database health check...");
+    
+    // Check users table structure
+    const [result]: any = await (db as any).session.client.query("SHOW CREATE TABLE users");
+    console.log("[Diagnostics] users table structure:");
+    console.log(result[0]['Create Table']);
+    
+    // Check if openId has a unique index
+    const [indexes]: any = await (db as any).session.client.query("SHOW INDEX FROM users");
+    console.log("[Diagnostics] users table indexes:", JSON.stringify(indexes, null, 2));
+
+  } catch (error: any) {
+    console.error("[Diagnostics] Failed to run diagnostics:", error.sqlMessage || error.message);
+  }
 }
 
 // ============ STORES ============
