@@ -115,6 +115,16 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
     },
   });
 
+  const addBalanceMutation = trpc.wallets.addBalance.useMutation({
+    onSuccess: () => {
+      toast.success("Saldo adicionado com sucesso!");
+      (document.getElementById("customer-email") as HTMLInputElement).value = "";
+      (document.getElementById("customer-amount") as HTMLInputElement).value = "";
+      (document.getElementById("customer-note") as HTMLInputElement).value = "";
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -281,6 +291,7 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
             <TabsTrigger value="settings" className="data-[state=active]:bg-purple-600">Personalizar Site</TabsTrigger>
             <TabsTrigger value="coupons" className="data-[state=active]:bg-purple-600">Cupons</TabsTrigger>
             <TabsTrigger value="orders" className="data-[state=active]:bg-purple-600">Pedidos</TabsTrigger>
+            <TabsTrigger value="customers" className="data-[state=active]:bg-purple-600">Clientes & Saldo</TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
@@ -571,6 +582,65 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          {/* Customers Tab */}
+          <TabsContent value="customers" className="space-y-6">
+            <Card className="bg-gray-800 border-gray-700 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-white">Adicionar Saldo ao Cliente</CardTitle>
+                <CardDescription>Use esta ferramenta após receber o Pix do seu cliente.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-gray-300">E-mail do Cliente</Label>
+                  <Input
+                    placeholder="cliente@email.com"
+                    className="bg-gray-700 border-gray-600 text-white"
+                    id="customer-email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Valor em Créditos (R$)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    className="bg-gray-700 border-gray-600 text-white"
+                    id="customer-amount"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Observação (Opcional)</Label>
+                  <Input
+                    placeholder="Ex: Pagamento via Pix"
+                    className="bg-gray-700 border-gray-600 text-white"
+                    id="customer-note"
+                  />
+                </div>
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold"
+                  onClick={() => {
+                    const email = (document.getElementById("customer-email") as HTMLInputElement).value;
+                    const amount = (document.getElementById("customer-amount") as HTMLInputElement).value;
+                    const note = (document.getElementById("customer-note") as HTMLInputElement).value;
+                    
+                    if (!email || !amount) {
+                      toast.error("Preencha o e-mail e o valor.");
+                      return;
+                    }
+                    
+                    addBalanceMutation.mutate({
+                      storeId: store.id,
+                      email,
+                      amount,
+                      description: note
+                    });
+                  }}
+                >
+                  Confirmar Depósito de Créditos
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Orders Tab */}

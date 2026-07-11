@@ -166,6 +166,44 @@ export const appRouter = router({
         
         return await db.getWalletTransactions(wallet.id, input.limit);
       }),
+
+    // Adicionar saldo (Apenas dono da loja)
+    addBalance: protectedProcedure
+      .input(z.object({
+        storeId: z.number(),
+        email: z.string().email(),
+        amount: z.string(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+        
+        const store = await db.getStoreById(input.storeId);
+        if (!store || store.ownerId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas o dono da loja pode adicionar saldo." });
+        }
+        
+        const targetUser = await db.getUserByEmail(input.email);
+        if (!targetUser) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
+        
+        const wallet = await db.getOrCreateWallet(targetUser.id, input.storeId);
+        
+        return await db.addWalletTransaction({
+          walletId: wallet.id,
+          type: "deposit",
+          amount: input.amount,
+          description: input.description || "Depósito via Administrador",
+        });
+      }),
+  }),
+
+  // ============ USERS ============
+  users: router({
+    searchByEmail: protectedProcedure
+      .input(z.object({ email: z.string() }))
+      .query(async ({ input }) => {
+        return await db.getUserByEmail(input.email);
+      }),
   }),
 
   // ============ ORDERS ============
