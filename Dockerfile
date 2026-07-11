@@ -8,6 +8,8 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
+# Include drizzle folder for database migrations
+COPY drizzle ./drizzle
 RUN npm ci --omit=dev --legacy-peer-deps
 COPY --from=builder /app/dist ./dist
 EXPOSE 3000
