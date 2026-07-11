@@ -103,41 +103,51 @@ export function registerGoogleOAuthRoutes(app: Express) {
     })
   );
 
-  // Google OAuth callback route
+  // Shared callback handler logic
+  const handleCallback = async (req: Request, res: Response) => {
+    try {
+      const user = req.user as any;
+
+      if (!user || !user.openId) {
+        res.status(400).json({ error: "User not found" });
+        return;
+      }
+
+      // Create JWT session token
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET || "secret");
+      const sessionToken = await new SignJWT({
+        openId: user.openId,
+        email: user.email,
+        name: user.name,
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setExpirationTime("1y")
+        .sign(secret);
+
+      // Set session cookie
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+
+      // Redirect to home
+      res.redirect("/");
+    } catch (error) {
+      console.error("[Google OAuth] Callback failed", error);
+      res.status(500).json({ error: "OAuth callback failed" });
+    }
+  };
+
+  // Google OAuth callback route (Standard)
   app.get(
     "/api/oauth/google/callback",
     passport.authenticate("google", { failureRedirect: "/" }),
-    async (req: Request, res: Response) => {
-      try {
-        const user = req.user as any;
+    handleCallback
+  );
 
-        if (!user || !user.openId) {
-          res.status(400).json({ error: "User not found" });
-          return;
-        }
-
-        // Create JWT session token
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET || "secret");
-        const sessionToken = await new SignJWT({
-          openId: user.openId,
-          email: user.email,
-          name: user.name,
-        })
-          .setProtectedHeader({ alg: "HS256" })
-          .setExpirationTime("1y")
-          .sign(secret);
-
-        // Set session cookie
-        const cookieOptions = getSessionCookieOptions(req);
-        res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-
-        // Redirect to home
-        res.redirect("/");
-      } catch (error) {
-        console.error("[Google OAuth] Callback failed", error);
-        res.status(500).json({ error: "OAuth callback failed" });
-      }
-    }
+  // Google OAuth callback route (Alternative format used in some configurations)
+  app.get(
+    "/api/google-oauth/callback",
+    passport.authenticate("google", { failureRedirect: "/" }),
+    handleCallback
   );
 
   // Logout route
