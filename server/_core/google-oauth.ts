@@ -35,6 +35,9 @@ export function registerGoogleOAuthRoutes(app: Express) {
     return;
   }
 
+  // Required for Render/proxies to correctly identify HTTPS
+  app.set("trust proxy", 1);
+
   // Register Google Strategy (lazy initialization — only when credentials exist)
   passport.use(
     new GoogleStrategy(
@@ -42,6 +45,7 @@ export function registerGoogleOAuthRoutes(app: Express) {
         clientID: googleClientId,
         clientSecret: googleClientSecret,
         callbackURL: "/api/oauth/google/callback",
+        proxy: true, // Tell passport to trust the proxy and use HTTPS in callbackURL
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
