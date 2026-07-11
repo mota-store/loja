@@ -1,5 +1,6 @@
 import { eq, and, or, desc, lt, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import { 
   InsertUser, 
   users,
@@ -22,12 +23,26 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+// Lazily create the drizzle instance with SSL support for TiDB/Cloud DBs
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Create a connection pool with SSL enabled by default
+      // This is required for TiDB Serverless and other secure cloud databases
+      _pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        ssl: {
+          rejectUnauthorized: true,
+        },
+        // Standard pool settings
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+      });
+      
+      _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -60,7 +75,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       let value = user[field];
       if (value === undefined) return;
       
-      // Sanitize name to avoid charset issues with special characters/emojis
       if (field === "name" && typeof value === "string") {
         value = value.replace(/[^\u0000-\uFFFF]/g, "");
       }
@@ -124,14 +138,13 @@ export async function getUserById(id: number) {
 // ============ AUTO-INITIALIZATION ============
 export async function ensureTablesExist() {
   const db = await getDb();
-  if (!db) return;
+  if (!db || !_pool) return;
 
   try {
-    console.log("[Database] Ensuring tables exist...");
+    console.log("[Database] Ensuring tables exist with secure connection...");
     
     // Create users table manually if it doesn't exist
-    // This uses raw SQL to bypass any drizzle-kit issues on Render
-    await (db as any).session.client.query(`
+    await _pool.query(`
       CREATE TABLE IF NOT EXISTS \`users\` (
         \`id\` int AUTO_INCREMENT PRIMARY KEY,
         \`openId\` varchar(64) NOT NULL UNIQUE,
