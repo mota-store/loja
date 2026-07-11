@@ -30,9 +30,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/">
-              <div className="flex items-center gap-2 cursor-pointer">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg shadow-lg shadow-purple-500/20" />
-                <span className="text-xl font-black tracking-tighter">MOTA HUB</span>
+              <div className="flex items-center gap-3 cursor-pointer group">
+                <img src="/logo.png" alt="Mota Hub Logo" className="w-10 h-10 rounded-lg shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform duration-300" />
+                <span className="text-xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">MOTA HUB</span>
               </div>
             </Link>
             
@@ -202,8 +202,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-12 border-t border-white/5 bg-gray-950">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <div className="w-6 h-6 bg-purple-600 rounded" />
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <img src="/logo.png" alt="Mota Hub Logo" className="w-8 h-8 rounded shadow-lg" />
             <span className="font-black tracking-tighter">MOTA HUB</span>
           </div>
           <p className="text-gray-500 text-sm">© 2026 Mota Hub. Todos os direitos reservados.</p>
