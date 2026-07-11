@@ -8,6 +8,8 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
+import { HexColorPicker } from "react-colorful";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export default function CreateStore() {
   const { isAuthenticated } = useAuth();
@@ -15,7 +17,7 @@ export default function CreateStore() {
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
-    accentColor: "#3B82F6",
+    accentColor: "#9333ea",
     whatsappNumber: "",
   });
 
@@ -68,6 +70,13 @@ export default function CreateStore() {
     }
   };
 
+  const handleColorChange = (color: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      accentColor: color,
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -102,8 +111,8 @@ export default function CreateStore() {
           <CardDescription>Configure sua loja e comece a vender</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
               <Label htmlFor="name" className="text-gray-300">
                 Nome da Loja *
               </Label>
@@ -118,12 +127,12 @@ export default function CreateStore() {
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="slug" className="text-gray-300">
                 URL da Loja *
               </Label>
               <div className="flex items-center">
-                <span className="text-gray-400 mr-2">motastorehub.com/</span>
+                <span className="text-gray-400 mr-2 text-sm truncate">motastorehub.com/</span>
                 <Input
                   id="slug"
                   name="slug"
@@ -134,33 +143,42 @@ export default function CreateStore() {
                   required
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-1">Apenas letras minúsculas, números e hífens</p>
+              <p className="text-xs text-gray-400">Apenas letras minúsculas, números e hífens</p>
             </div>
 
-            <div>
-              <Label htmlFor="accentColor" className="text-gray-300">
-                Cor de Destaque
-              </Label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="accentColor"
-                  name="accentColor"
-                  type="color"
-                  value={formData.accentColor}
-                  onChange={handleChange}
-                  className="w-12 h-10 rounded cursor-pointer"
-                />
-                <Input
-                  type="text"
-                  value={formData.accentColor}
-                  onChange={handleChange}
-                  className="bg-gray-700 border-gray-600 text-white"
-                  placeholder="#3B82F6"
-                />
+            <div className="space-y-2">
+              <Label className="text-gray-300 block">Cor de Destaque</Label>
+              <div className="flex items-center gap-4">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button 
+                      type="button"
+                      className="w-12 h-12 rounded-full border-2 border-gray-600 shadow-inner transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      style={{ backgroundColor: formData.accentColor }}
+                    />
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-3 bg-gray-800 border-gray-700">
+                    <HexColorPicker color={formData.accentColor} onChange={handleColorChange} />
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full border border-gray-600" style={{ backgroundColor: formData.accentColor }} />
+                      <span className="text-xs font-mono text-gray-300 uppercase">{formData.accentColor}</span>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <div className="flex-1">
+                  <Input
+                    type="text"
+                    value={formData.accentColor}
+                    onChange={(e) => handleColorChange(e.target.value)}
+                    className="bg-gray-700 border-gray-600 text-white font-mono uppercase"
+                    placeholder="#9333EA"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-gray-400">Clique no círculo para escolher a cor visualmente</p>
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="whatsappNumber" className="text-gray-300">
                 Número do WhatsApp *
               </Label>
@@ -173,13 +191,13 @@ export default function CreateStore() {
                 className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">Para receber notificações de pedidos</p>
+              <p className="text-xs text-gray-400">Para receber notificações de pedidos</p>
             </div>
 
             <Button
               type="submit"
               disabled={createStoreMutation.isPending}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-6 text-lg transition-all"
             >
               {createStoreMutation.isPending ? "Criando..." : "Criar Loja"}
             </Button>
