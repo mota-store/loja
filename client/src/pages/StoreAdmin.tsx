@@ -7,9 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { Trash2, Edit2, Plus, Image as ImageIcon, Save, X, Settings } from "lucide-react";
+import { Trash2, Edit2, Plus, Image as ImageIcon, Save, X, Settings, Upload, Loader2 } from "lucide-react";
 
 interface StoreAdminProps {
   params: { slug: string };
@@ -19,6 +19,7 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
   const { slug } = params;
   const { isAuthenticated, user } = useAuth();
   const [, navigate] = useLocation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch store
   const storeQuery = trpc.stores.getBySlug.useQuery({ slug });
@@ -52,6 +53,7 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
   });
   const [couponForm, setCouponForm] = useState({ code: "", discountPercentage: "", maxUses: "" });
   const [storeForm, setStoreForm] = useState({ description: "", homeContent: "" });
+  const [isUploading, setIsUploading] = useState(false);
 
   // Initialize store form when data loads
   useState(() => {
@@ -157,6 +159,46 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
 
   const resetProductForm = () => {
     setProductForm({ id: null, name: "", description: "", price: "", imageUrl: "", benefits: "" });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione apenas imagens.");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            base64Data: base64Data
+          })
+        });
+
+        if (!response.ok) throw new Error("Falha no upload");
+
+        const data = await response.json();
+        setProductForm({ ...productForm, imageUrl: data.url });
+        toast.success("Foto carregada com sucesso!");
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao subir a foto.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSaveProduct = () => {
@@ -276,19 +318,48 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label className="text-gray-300">URL da Imagem (Opcional)</Label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <ImageIcon className="absolute left-3 top-3 text-gray-500" size={18} />
-                      <Input
-                        value={productForm.imageUrl}
-                        onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
-                        placeholder="https://exemplo.com/imagem.jpg"
-                        className="bg-gray-700 border-gray-600 text-white pl-10 focus:ring-purple-500"
-                      />
+                  <Label className="text-gray-300">Foto do Produto</Label>
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    {productForm.imageUrl && (
+                      <div className="w-24 h-24 rounded-lg overflow-hidden border border-gray-600 bg-gray-700">
+                        <img src={productForm.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          ref={fileInputRef}
+                          onChange={handleFileUpload}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="w-full bg-gray-700 hover:bg-gray-600 border-dashed border-2 border-gray-500"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="mr-2 h-4 w-4" />
+                          )}
+                          {productForm.imageUrl ? "Trocar Foto" : "Selecionar do Dispositivo"}
+                        </Button>
+                      </div>
+                      <div className="relative">
+                        <ImageIcon className="absolute left-3 top-3 text-gray-500" size={18} />
+                        <Input
+                          value={productForm.imageUrl}
+                          onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
+                          placeholder="Ou cole o link da imagem aqui"
+                          className="bg-gray-700 border-gray-600 text-white pl-10 focus:ring-purple-500"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Dica: Use links do Imgur, PostImages ou similares.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -314,7 +385,7 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
                 <div className="flex gap-2 pt-2">
                   <Button
                     onClick={handleSaveProduct}
-                    disabled={createProductMutation.isPending || updateProductMutation.isPending}
+                    disabled={createProductMutation.isPending || updateProductMutation.isPending || isUploading}
                     className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold"
                   >
                     <Save className="mr-2 h-4 w-4" />
@@ -341,16 +412,14 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
                   <Card key={product.id} className="bg-gray-800 border-gray-700 overflow-hidden group hover:border-purple-500/50 transition-all">
                     <CardContent className="p-0">
                       <div className="flex h-full">
-                        {product.imageUrl && (
-                          <div className="w-24 sm:w-32 bg-gray-700 flex-shrink-0">
-                            <img 
-                              src={product.imageUrl} 
-                              alt={product.name} 
-                              className="w-full h-full object-cover"
-                              onError={(e) => (e.currentTarget.src = "https://placehold.co/400x400/2d3748/a0aec0?text=Sem+Foto")}
-                            />
-                          </div>
-                        )}
+                        <div className="w-24 sm:w-32 bg-gray-700 flex-shrink-0 relative">
+                          <img 
+                            src={product.imageUrl || "https://placehold.co/400x400/2d3748/a0aec0?text=Sem+Foto"} 
+                            alt={product.name} 
+                            className="w-full h-full object-cover"
+                            onError={(e) => (e.currentTarget.src = "https://placehold.co/400x400/2d3748/a0aec0?text=Sem+Foto")}
+                          />
+                        </div>
                         <div className="flex-1 p-4 flex flex-col justify-between">
                           <div>
                             <h4 className="font-bold text-lg text-white group-hover:text-purple-300 transition-colors">{product.name}</h4>

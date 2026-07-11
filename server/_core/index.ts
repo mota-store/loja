@@ -10,6 +10,8 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { ENV } from "./env";
 import { ensureTablesExist } from "../db";
+import { authenticateRequest } from "./auth-jwt";
+import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,11 +53,40 @@ async function startServer() {
 
   const app = express();
   const server = createServer(app);
+  
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
   registerStorageProxy(app);
   registerGoogleOAuthRoutes(app);
+
+  // Endpoint de Upload Direto
+  app.post("/api/upload", async (req, res) => {
+    try {
+      const user = await authenticateRequest(req);
+      if (!user) {
+        return res.status(401).json({ error: "Não autorizado" });
+      }
+
+      const { fileName, fileType, base64Data } = req.body;
+      if (!fileName || !base64Data) {
+        return res.status(400).json({ error: "Dados do arquivo ausentes" });
+      }
+
+      // Converter base64 para Buffer
+      const buffer = Buffer.from(base64Data.split(",")[1] || base64Data, "base64");
+      
+      // Salvar no storage
+      const result = await storagePut(`uploads/${user.id}/${fileName}`, buffer, fileType || "application/octet-stream");
+      
+      res.json({ url: result.url });
+    } catch (error: any) {
+      console.error("[Upload] Erro:", error);
+      res.status(500).json({ error: "Falha no upload do arquivo" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -64,6 +95,7 @@ async function startServer() {
       createContext,
     })
   );
+  
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
