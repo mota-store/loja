@@ -57,8 +57,17 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     type TextField = (typeof textFields)[number];
 
     const assignNullable = (field: TextField) => {
-      const value = user[field];
+      let value = user[field];
       if (value === undefined) return;
+      
+      // Sanitize name to avoid charset issues with special characters/emojis
+      if (field === "name" && typeof value === "string") {
+        // Remove characters that might break standard UTF-8 (non-BMP characters like emojis)
+        // unless the database is explicitly set to utf8mb4.
+        // We'll replace them with a space or empty string to be safe.
+        value = value.replace(/[^\u0000-\uFFFF]/g, "");
+      }
+
       const normalized = value ?? null;
       values[field] = normalized;
       updateSet[field] = normalized;
@@ -508,9 +517,8 @@ export async function getCartItems(userId: number, storeId: number) {
   const db = await getDb();
   if (!db) return [];
 
-  return await db.select().from(cartItems).where(
-    and(eq(cartItems.userId, userId), eq(cartItems.storeId, storeId))
-  );
+  return await db.select().from(cartItems)
+    .where(and(eq(cartItems.userId, userId), eq(cartItems.storeId, storeId)));
 }
 
 export async function updateCartItem(id: number, quantity: number) {
@@ -518,7 +526,7 @@ export async function updateCartItem(id: number, quantity: number) {
   if (!db) throw new Error("Database not available");
 
   if (quantity <= 0) {
-    return await db.delete(cartItems).where(eq(cartItems.id, id));
+    return await removeFromCart(id);
   }
 
   return await db.update(cartItems).set({ quantity }).where(eq(cartItems.id, id));
