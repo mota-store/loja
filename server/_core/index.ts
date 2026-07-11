@@ -9,7 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { ENV } from "./env";
-import { runDiagnostics } from "../db";
+import { ensureTablesExist } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -41,8 +41,8 @@ async function startServer() {
   if (!ENV.databaseUrl) {
     console.warn("[Warning] DATABASE_URL is not set. Database features will be unavailable.");
   } else {
-    // Run database diagnostics on startup
-    runDiagnostics().catch(err => console.error("Diagnostics failed:", err));
+    // Run manual table creation on startup to bypass drizzle-kit issues
+    await ensureTablesExist().catch(err => console.error("Table creation failed:", err));
   }
   
   if (!ENV.jwtSecret) {

@@ -96,60 +96,58 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet,
     });
   } catch (error: any) {
-    console.error("[Database Error] Detailed report for upsertUser:");
+    console.error("**************************************************");
+    console.error("FATAL DATABASE ERROR DURING UPSERT");
+    console.error("Message:", error.sqlMessage || error.message);
     console.error("Code:", error.code);
-    console.error("Errno:", error.errno);
     console.error("SQL State:", error.sqlState);
-    console.error("SQL Message:", error.sqlMessage);
-    console.error("Stack:", error.stack);
-    if (error.sql) console.error("Executed SQL:", error.sql);
-    
+    console.error("Params:", JSON.stringify(user));
+    console.error("**************************************************");
     throw error;
   }
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
+  if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
 
 export async function getUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
-// ============ DIAGNOSTICS ============
-export async function runDiagnostics() {
+// ============ AUTO-INITIALIZATION ============
+export async function ensureTablesExist() {
   const db = await getDb();
-  if (!db) {
-    console.error("[Diagnostics] Database not available");
-    return;
-  }
+  if (!db) return;
 
   try {
-    console.log("[Diagnostics] Running database health check...");
+    console.log("[Database] Ensuring tables exist...");
     
-    // Check users table structure
-    const [result]: any = await (db as any).session.client.query("SHOW CREATE TABLE users");
-    console.log("[Diagnostics] users table structure:");
-    console.log(result[0]['Create Table']);
-    
-    // Check if openId has a unique index
-    const [indexes]: any = await (db as any).session.client.query("SHOW INDEX FROM users");
-    console.log("[Diagnostics] users table indexes:", JSON.stringify(indexes, null, 2));
+    // Create users table manually if it doesn't exist
+    // This uses raw SQL to bypass any drizzle-kit issues on Render
+    await (db as any).session.client.query(`
+      CREATE TABLE IF NOT EXISTS \`users\` (
+        \`id\` int AUTO_INCREMENT PRIMARY KEY,
+        \`openId\` varchar(64) NOT NULL UNIQUE,
+        \`name\` text,
+        \`email\` varchar(320),
+        \`loginMethod\` varchar(64),
+        \`role\` enum('user','admin') NOT NULL DEFAULT 'user',
+        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        \`lastSignedIn\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
 
+    console.log("[Database] Table 'users' is ready.");
   } catch (error: any) {
-    console.error("[Diagnostics] Failed to run diagnostics:", error.sqlMessage || error.message);
+    console.error("[Database] Failed to ensure tables exist:", error.sqlMessage || error.message);
   }
 }
 
