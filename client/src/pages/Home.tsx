@@ -53,7 +53,7 @@ export default function Home() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-gray-700" />
-                <Link href="/admin">
+                <Link href="/my-stores">
                   <DropdownMenuItem className="cursor-pointer hover:bg-gray-700 focus:bg-gray-700">
                     <LayoutDashboard className="mr-2 h-4 w-4" />
                     <span>Minhas Lojas</span>

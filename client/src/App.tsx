@@ -11,6 +11,7 @@ import UserProfile from "./pages/UserProfile";
 import StoreAdmin from "./pages/StoreAdmin";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import AdminDashboard from "./pages/AdminDashboard";
+import MyStores from "./pages/MyStores";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -18,6 +19,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/my-stores" component={MyStores} />
       <Route path="/create-store" component={CreateStore} />
       <Route path="/:slug/profile" component={UserProfile} />
       <Route path="/:slug/admin" component={StoreAdmin} />
