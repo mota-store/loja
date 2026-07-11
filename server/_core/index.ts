@@ -20,12 +20,15 @@ function isPortAvailable(port: number): Promise<boolean> {
 }
 
 async function findAvailablePort(startPort: number = 3000): Promise<number> {
+  // If port is 0, let the OS choose
+  if (startPort === 0) return 0;
+  
   for (let port = startPort; port < startPort + 20; port++) {
     if (await isPortAvailable(port)) {
       return port;
     }
   }
-  throw new Error(`No available port found starting from ${startPort}`);
+  return startPort; // Fallback to startPort if none found in range, listen() will throw if busy
 }
 
 async function startServer() {
@@ -51,16 +54,22 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // Render provides PORT env var, which is usually 10000 or similar
+  const preferredPort = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  
+  // Only search for ports in development
+  const port = process.env.NODE_ENV === "development" 
+    ? await findAvailablePort(preferredPort)
+    : preferredPort;
 
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
-  }
-
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.listen(port, "0.0.0.0", () => {
+    const address = server.address();
+    const actualPort = typeof address === "string" ? address : address?.port;
+    console.log(`Server running on port ${actualPort} (NODE_ENV=${process.env.NODE_ENV})`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(err => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});

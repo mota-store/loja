@@ -3,10 +3,16 @@ import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
 
 export async function setupVite(app: Express, server: Server) {
+  // Dynamic imports to avoid loading devDependencies in production
+  // We use string-based dynamic imports to prevent esbuild from bundling them
+  const viteModule = "vite";
+  const configPath = "../../vite.config";
+  
+  const { createServer: createViteServer } = await import(viteModule);
+  const { default: viteConfig } = await import(configPath);
+
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -62,6 +68,11 @@ export function serveStatic(app: Express) {
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexPath = path.resolve(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send("Not Found");
+    }
   });
 }
