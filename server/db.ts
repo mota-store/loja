@@ -29,14 +29,11 @@ let _pool: mysql.Pool | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // Create a connection pool with SSL enabled by default
-      // This is required for TiDB Serverless and other secure cloud databases
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         ssl: {
           rejectUnauthorized: true,
         },
-        // Standard pool settings
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0
@@ -57,10 +54,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 
   const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
+  if (!db) return;
 
   try {
     const values: InsertUser = {
@@ -69,22 +63,16 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     const updateSet: Record<string, unknown> = {};
 
     const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
+    textFields.forEach(field => {
       let value = user[field];
-      if (value === undefined) return;
-      
-      if (field === "name" && typeof value === "string") {
-        value = value.replace(/[^\u0000-\uFFFF]/g, "");
+      if (value !== undefined) {
+        if (field === "name" && typeof value === "string") {
+          value = value.replace(/[^\u0000-\uFFFF]/g, "");
+        }
+        values[field] = value ?? null;
+        updateSet[field] = value ?? null;
       }
-
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
+    });
 
     if (user.lastSignedIn !== undefined) {
       values.lastSignedIn = user.lastSignedIn;
@@ -98,13 +86,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.role = 'admin';
     }
 
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
+    if (!values.lastSignedIn) values.lastSignedIn = new Date();
+    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
 
     await db.insert(users).values(values).onDuplicateKeyUpdate({
       set: updateSet,
@@ -113,9 +96,6 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     console.error("**************************************************");
     console.error("FATAL DATABASE ERROR DURING UPSERT");
     console.error("Message:", error.sqlMessage || error.message);
-    console.error("Code:", error.code);
-    console.error("SQL State:", error.sqlState);
-    console.error("Params:", JSON.stringify(user));
     console.error("**************************************************");
     throw error;
   }
@@ -141,9 +121,8 @@ export async function ensureTablesExist() {
   if (!db || !_pool) return;
 
   try {
-    console.log("[Database] Ensuring tables exist with secure connection...");
+    console.log("[Database] Ensuring tables exist with new fields...");
     
-    // Create users table manually if it doesn't exist
     await _pool.query(`
       CREATE TABLE IF NOT EXISTS \`users\` (
         \`id\` int AUTO_INCREMENT PRIMARY KEY,
@@ -158,7 +137,51 @@ export async function ensureTablesExist() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    console.log("[Database] Table 'users' is ready.");
+    await _pool.query(`
+      CREATE TABLE IF NOT EXISTS \`stores\` (
+        \`id\` int AUTO_INCREMENT PRIMARY KEY,
+        \`ownerId\` int NOT NULL,
+        \`name\` varchar(255) NOT NULL,
+        \`slug\` varchar(100) NOT NULL UNIQUE,
+        \`accentColor\` varchar(7) NOT NULL DEFAULT '#3B82F6',
+        \`whatsappNumber\` varchar(20) NOT NULL,
+        \`description\` text,
+        \`homeContent\` text,
+        \`isActive\` boolean NOT NULL DEFAULT true,
+        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await _pool.query(`
+      CREATE TABLE IF NOT EXISTS \`products\` (
+        \`id\` int AUTO_INCREMENT PRIMARY KEY,
+        \`storeId\` int NOT NULL,
+        \`name\` varchar(255) NOT NULL,
+        \`description\` text,
+        \`price\` decimal(10,2) NOT NULL,
+        \`imageUrl\` text,
+        \`benefits\` json NOT NULL,
+        \`isActive\` boolean NOT NULL DEFAULT true,
+        \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Check for new columns and add them if they don't exist
+    const [storeCols]: any = await _pool.query("SHOW COLUMNS FROM stores LIKE 'homeContent'");
+    if (storeCols.length === 0) {
+      await _pool.query("ALTER TABLE stores ADD COLUMN homeContent text AFTER description");
+      console.log("[Database] Added 'homeContent' column to 'stores'");
+    }
+
+    const [productCols]: any = await _pool.query("SHOW COLUMNS FROM products LIKE 'imageUrl'");
+    if (productCols.length === 0) {
+      await _pool.query("ALTER TABLE products ADD COLUMN imageUrl text AFTER price");
+      console.log("[Database] Added 'imageUrl' column to 'products'");
+    }
+
+    console.log("[Database] All tables are ready.");
   } catch (error: any) {
     console.error("[Database] Failed to ensure tables exist:", error.sqlMessage || error.message);
   }
@@ -173,20 +196,21 @@ export async function createStore(data: {
   accentColor: string;
   whatsappNumber: string;
   description?: string;
+  homeContent?: string;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(stores).values({
+  return await db.insert(stores).values({
     ownerId: data.ownerId,
     name: data.name,
     slug: data.slug,
     accentColor: data.accentColor,
     whatsappNumber: data.whatsappNumber,
     description: data.description,
+    homeContent: data.homeContent,
     isActive: true,
   });
-  return result;
 }
 
 export async function getStoreBySlug(slug: string) {
@@ -233,6 +257,7 @@ export async function createProduct(data: {
   name: string;
   description?: string;
   price: string;
+  imageUrl?: string;
   benefits?: string[];
 }) {
   const db = await getDb();
@@ -243,6 +268,7 @@ export async function createProduct(data: {
     name: data.name,
     description: data.description,
     price: data.price,
+    imageUrl: data.imageUrl,
     benefits: data.benefits || [],
     isActive: true,
   });

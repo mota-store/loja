@@ -4,11 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Trash2, Edit2, Plus } from "lucide-react";
+import { Trash2, Edit2, Plus, Image as ImageIcon, Save, X, Settings } from "lucide-react";
 
 interface StoreAdminProps {
   params: { slug: string };
@@ -41,19 +42,44 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
   );
 
   // Form states
-  const [productForm, setProductForm] = useState({ name: "", description: "", price: "", benefits: "" });
+  const [productForm, setProductForm] = useState({ 
+    id: null as number | null,
+    name: "", 
+    description: "", 
+    price: "", 
+    imageUrl: "",
+    benefits: "" 
+  });
   const [couponForm, setCouponForm] = useState({ code: "", discountPercentage: "", maxUses: "" });
+  const [storeForm, setStoreForm] = useState({ description: "", homeContent: "" });
+
+  // Initialize store form when data loads
+  useState(() => {
+    if (storeQuery.data) {
+      setStoreForm({
+        description: storeQuery.data.description || "",
+        homeContent: storeQuery.data.homeContent || ""
+      });
+    }
+  });
 
   // Mutations
   const createProductMutation = trpc.products.create.useMutation({
     onSuccess: () => {
       toast.success("Produto criado!");
-      setProductForm({ name: "", description: "", price: "", benefits: "" });
+      resetProductForm();
       productsQuery.refetch();
     },
-    onError: (error) => {
-      toast.error(error.message);
+    onError: (error) => toast.error(error.message),
+  });
+
+  const updateProductMutation = trpc.products.update.useMutation({
+    onSuccess: () => {
+      toast.success("Produto atualizado!");
+      resetProductForm();
+      productsQuery.refetch();
     },
+    onError: (error) => toast.error(error.message),
   });
 
   const deleteProductMutation = trpc.products.delete.useMutation({
@@ -63,15 +89,21 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
     },
   });
 
+  const updateStoreMutation = trpc.stores.update.useMutation({
+    onSuccess: () => {
+      toast.success("Configurações da loja salvas!");
+      storeQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const createCouponMutation = trpc.coupons.create.useMutation({
     onSuccess: () => {
       toast.success("Cupom criado!");
       setCouponForm({ code: "", discountPercentage: "", maxUses: "" });
       couponsQuery.refetch();
     },
-    onError: (error) => {
-      toast.error(error.message);
-    },
+    onError: (error) => toast.error(error.message),
   });
 
   const deleteCouponMutation = trpc.coupons.delete.useMutation({
@@ -123,18 +155,48 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
     );
   }
 
-  const handleCreateProduct = () => {
+  const resetProductForm = () => {
+    setProductForm({ id: null, name: "", description: "", price: "", imageUrl: "", benefits: "" });
+  };
+
+  const handleSaveProduct = () => {
     if (!productForm.name || !productForm.price) {
       toast.error("Preencha nome e preço");
       return;
     }
 
-    createProductMutation.mutate({
-      storeId: store.id,
+    const data = {
       name: productForm.name,
       description: productForm.description,
       price: productForm.price,
+      imageUrl: productForm.imageUrl,
       benefits: productForm.benefits ? productForm.benefits.split(",").map((b) => b.trim()) : [],
+    };
+
+    if (productForm.id) {
+      updateProductMutation.mutate({ id: productForm.id, ...data });
+    } else {
+      createProductMutation.mutate({ storeId: store.id, ...data });
+    }
+  };
+
+  const handleEditProduct = (product: any) => {
+    setProductForm({
+      id: product.id,
+      name: product.name,
+      description: product.description || "",
+      price: product.price.toString(),
+      imageUrl: product.imageUrl || "",
+      benefits: product.benefits ? product.benefits.join(", ") : "",
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSaveStore = () => {
+    updateStoreMutation.mutate({
+      id: store.id,
+      description: storeForm.description,
+      homeContent: storeForm.homeContent,
     });
   };
 
@@ -156,101 +218,213 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
     <div className="min-h-screen bg-gray-900 text-white p-4">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Painel da Loja: {store.name}</h1>
-          <Button onClick={() => navigate(`/${slug}`)} variant="outline" className="border-gray-600">
-            Voltar à Loja
-          </Button>
+        <div className="flex items-center justify-between bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
+          <div>
+            <h1 className="text-3xl font-bold text-purple-400">{store.name}</h1>
+            <p className="text-gray-400">Painel de Gerenciamento</p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate(`/${slug}`)} variant="outline" className="border-gray-600 hover:bg-gray-700">
+              Ver Loja
+            </Button>
+            <Button onClick={() => navigate("/my-stores")} variant="secondary">
+              Minhas Lojas
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="products" className="w-full">
-          <TabsList className="bg-gray-800 border-gray-700">
-            <TabsTrigger value="products">Produtos</TabsTrigger>
-            <TabsTrigger value="coupons">Cupons</TabsTrigger>
-            <TabsTrigger value="orders">Pedidos</TabsTrigger>
+          <TabsList className="bg-gray-800 border-gray-700 p-1 mb-6">
+            <TabsTrigger value="products" className="data-[state=active]:bg-purple-600">Produtos</TabsTrigger>
+            <TabsTrigger value="settings" className="data-[state=active]:bg-purple-600">Personalizar Site</TabsTrigger>
+            <TabsTrigger value="coupons" className="data-[state=active]:bg-purple-600">Cupons</TabsTrigger>
+            <TabsTrigger value="orders" className="data-[state=active]:bg-purple-600">Pedidos</TabsTrigger>
           </TabsList>
 
           {/* Products Tab */}
           <TabsContent value="products" className="space-y-6">
-            <Card className="bg-gray-800 border-gray-700">
+            <Card className="bg-gray-800 border-gray-700 shadow-xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
-                  <Plus size={20} />
-                  Novo Produto
+                  {productForm.id ? <Edit2 size={20} className="text-yellow-400" /> : <Plus size={20} className="text-green-400" />}
+                  {productForm.id ? "Editar Produto" : "Novo Produto"}
                 </CardTitle>
+                <CardDescription>Preencha os dados abaixo para {productForm.id ? "atualizar o" : "criar um novo"} produto.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-gray-300">Nome</Label>
-                  <Input
-                    value={productForm.name}
-                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                    className="bg-gray-700 border-gray-600 text-white"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Nome do Produto</Label>
+                    <Input
+                      value={productForm.name}
+                      onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                      placeholder="Ex: 1000 Créditos"
+                      className="bg-gray-700 border-gray-600 text-white focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-300">Preço (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={productForm.price}
+                      onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                      placeholder="0.00"
+                      className="bg-gray-700 border-gray-600 text-white focus:ring-purple-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-gray-300">Descrição</Label>
+                
+                <div className="space-y-2">
+                  <Label className="text-gray-300">URL da Imagem (Opcional)</Label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <ImageIcon className="absolute left-3 top-3 text-gray-500" size={18} />
+                      <Input
+                        value={productForm.imageUrl}
+                        onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
+                        placeholder="https://exemplo.com/imagem.jpg"
+                        className="bg-gray-700 border-gray-600 text-white pl-10 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">Dica: Use links do Imgur, PostImages ou similares.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Descrição Curta</Label>
                   <Input
                     value={productForm.description}
                     onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                    className="bg-gray-700 border-gray-600 text-white"
+                    placeholder="Uma breve descrição do que o cliente está comprando"
+                    className="bg-gray-700 border-gray-600 text-white focus:ring-purple-500"
                   />
                 </div>
-                <div>
-                  <Label className="text-gray-300">Preço (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    className="bg-gray-700 border-gray-600 text-white"
-                  />
-                </div>
-                <div>
+
+                <div className="space-y-2">
                   <Label className="text-gray-300">Benefícios (separados por vírgula)</Label>
-                  <Input
+                  <Textarea
                     value={productForm.benefits}
                     onChange={(e) => setProductForm({ ...productForm, benefits: e.target.value })}
-                    placeholder="Ex: Acesso 30 dias, Suporte 24h"
-                    className="bg-gray-700 border-gray-600 text-white"
+                    placeholder="Ex: Entrega Instantânea, Bônus de 10%, Suporte VIP"
+                    className="bg-gray-700 border-gray-600 text-white focus:ring-purple-500 min-h-[80px]"
                   />
                 </div>
-                <Button
-                  onClick={handleCreateProduct}
-                  disabled={createProductMutation.isPending}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
-                >
-                  {createProductMutation.isPending ? "Criando..." : "Criar Produto"}
-                </Button>
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={handleSaveProduct}
+                    disabled={createProductMutation.isPending || updateProductMutation.isPending}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {productForm.id ? "Salvar Alterações" : "Criar Produto"}
+                  </Button>
+                  {productForm.id && (
+                    <Button onClick={resetProductForm} variant="outline" className="border-gray-600">
+                      <X className="mr-2 h-4 w-4" />
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
             {/* Products List */}
-            <div className="space-y-3">
-              <h3 className="text-xl font-bold">Produtos Cadastrados</h3>
-              {(productsQuery.data || []).map((product) => (
-                <Card key={product.id} className="bg-gray-800 border-gray-700">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-bold">{product.name}</h4>
-                        <p className="text-gray-400 text-sm">{product.description}</p>
-                        <p className="text-lg font-semibold" style={{ color: store.accentColor }}>
-                          R$ {parseFloat(product.price).toFixed(2)}
-                        </p>
+            <div className="space-y-4">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <Settings size={24} className="text-purple-400" />
+                Produtos Cadastrados
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(productsQuery.data || []).map((product) => (
+                  <Card key={product.id} className="bg-gray-800 border-gray-700 overflow-hidden group hover:border-purple-500/50 transition-all">
+                    <CardContent className="p-0">
+                      <div className="flex h-full">
+                        {product.imageUrl && (
+                          <div className="w-24 sm:w-32 bg-gray-700 flex-shrink-0">
+                            <img 
+                              src={product.imageUrl} 
+                              alt={product.name} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => (e.currentTarget.src = "https://placehold.co/400x400/2d3748/a0aec0?text=Sem+Foto")}
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 p-4 flex flex-col justify-between">
+                          <div>
+                            <h4 className="font-bold text-lg text-white group-hover:text-purple-300 transition-colors">{product.name}</h4>
+                            <p className="text-gray-400 text-sm line-clamp-2">{product.description}</p>
+                            <p className="text-xl font-bold mt-2" style={{ color: store.accentColor }}>
+                              R$ {parseFloat(product.price).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 mt-4">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleEditProduct(product)}
+                              className="bg-gray-700 hover:bg-gray-600 flex-1"
+                            >
+                              <Edit2 size={14} className="mr-1" /> Editar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteProductMutation.mutate({ id: product.id })}
+                              className="px-3"
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteProductMutation.mutate({ id: product.id })}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            <Card className="bg-gray-800 border-gray-700 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-white">Personalizar sua Loja</CardTitle>
+                <CardDescription>Adicione textos e informações que aparecerão no seu site.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Slogan / Descrição Curta (Abaixo do nome da loja)</Label>
+                  <Input
+                    value={storeForm.description}
+                    onChange={(e) => setStoreForm({ ...storeForm, description: e.target.value })}
+                    placeholder="Ex: A melhor loja de créditos do servidor!"
+                    className="bg-gray-700 border-gray-600 text-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-gray-300">Conteúdo em Destaque na Home</Label>
+                  <Textarea
+                    value={storeForm.homeContent}
+                    onChange={(e) => setStoreForm({ ...storeForm, homeContent: e.target.value })}
+                    placeholder="Escreva aqui um texto que aparecerá na página inicial da sua loja. Você pode explicar como comprar, regras da loja ou promoções."
+                    className="bg-gray-700 border-gray-600 text-white min-h-[200px]"
+                  />
+                  <p className="text-xs text-gray-500 italic">Dica: Esse texto ajuda a passar confiança para os seus clientes.</p>
+                </div>
+
+                <Button
+                  onClick={handleSaveStore}
+                  disabled={updateStoreMutation.isPending}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-6"
+                >
+                  <Save className="mr-2 h-5 w-5" />
+                  Salvar Configurações do Site
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Coupons Tab */}
@@ -335,10 +509,12 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
             <div className="space-y-3">
               <h3 className="text-xl font-bold">Pedidos Recentes</h3>
               {(ordersQuery.data || []).length === 0 ? (
-                <p className="text-gray-400">Nenhum pedido ainda</p>
+                <div className="text-center py-20 bg-gray-800 rounded-xl border border-gray-700">
+                  <p className="text-gray-400">Nenhum pedido ainda</p>
+                </div>
               ) : (
                 (ordersQuery.data || []).map((order) => (
-                  <Card key={order.id} className="bg-gray-800 border-gray-700">
+                  <Card key={order.id} className="bg-gray-800 border-gray-700 hover:border-gray-600 transition-all">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div>
@@ -348,9 +524,12 @@ export default function StoreAdmin({ params }: StoreAdminProps) {
                             R$ {parseFloat(order.total).toFixed(2)}
                           </p>
                         </div>
-                        <span className={order.status === "completed" ? "text-green-400 font-bold" : "text-yellow-400 font-bold"}>
-                          {order.status === "completed" ? "✓ Concluído" : "⏳ Pendente"}
-                        </span>
+                        <div className="text-right">
+                          <span className={order.status === "completed" ? "text-green-400 font-bold" : "text-yellow-400 font-bold"}>
+                            {order.status === "completed" ? "✓ Concluído" : "⏳ Pendente"}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">Status do Pagamento</p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

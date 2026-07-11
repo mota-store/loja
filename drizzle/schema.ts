@@ -48,6 +48,7 @@ export const stores = mysqlTable("stores", {
   accentColor: varchar("accentColor", { length: 7 }).default("#3B82F6").notNull(),
   whatsappNumber: varchar("whatsappNumber", { length: 20 }).notNull(),
   description: text("description"),
+  homeContent: text("homeContent"), // Novo campo para texto livre na home
   isActive: boolean("isActive").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -68,6 +69,7 @@ export const products = mysqlTable("products", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  imageUrl: text("imageUrl"), // Novo campo para link da imagem
   benefits: json("benefits").$type<string[]>().notNull(),
   isActive: boolean("isActive").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

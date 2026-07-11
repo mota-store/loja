@@ -26,6 +26,7 @@ export const appRouter = router({
         accentColor: z.string().regex(/^#[0-9A-F]{6}$/i),
         whatsappNumber: z.string().min(1),
         description: z.string().optional(),
+        homeContent: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -63,6 +64,7 @@ export const appRouter = router({
         accentColor: z.string().optional(),
         whatsappNumber: z.string().optional(),
         description: z.string().optional(),
+        homeContent: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
@@ -84,6 +86,7 @@ export const appRouter = router({
         name: z.string().min(1),
         description: z.string().optional(),
         price: z.string(),
+        imageUrl: z.string().optional(),
         benefits: z.array(z.string()).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -109,6 +112,7 @@ export const appRouter = router({
         name: z.string().optional(),
         description: z.string().optional(),
         price: z.string().optional(),
+        imageUrl: z.string().optional(),
         benefits: z.array(z.string()).optional(),
         isActive: z.boolean().optional(),
       }))
